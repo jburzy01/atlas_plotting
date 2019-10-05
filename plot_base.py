@@ -1,4 +1,4 @@
-from ROOT import TCanvas, TLatex, TLegend
+from ROOT import *
 import uuid
 import array
 
@@ -27,18 +27,20 @@ class PlotBase(object):
             atlas_loc       = None,
             extra_lines_loc = None,
             tex_size_mod    = 1.0,
-            tex_spacing_mod = 1.0,
+            tex_spacing_mod    = 1.0,
             debug           = False,
             atlas_mod       = "Internal", # 'Internal', 'Preliminary', etc
-            lumi_val        = "33.0",      # ex: '3.2'
+            lumi_val        = "X.X",      # ex: '3.2'
             hide_lumi       = True,
             lumi_units      = "fb",       # ex: 'fb'
             com_energy      = "13",       # in TeV
             extra_legend_lines = [],
+            rebin = None,
             **kwargs):
 
         super(PlotBase, self).__init__(**kwargs)
 
+        self.log = []
 
         self.x_title = x_title
         self.y_title = y_title
@@ -77,7 +79,7 @@ class PlotBase(object):
             assert(len(legend_loc) == 4)
             self.legend_loc = legend_loc
 
-        self.atlas_loc = [0.16,0.88]
+        self.atlas_loc = [0.2,0.90]
         if (atlas_loc):
             assert(len(atlas_loc) == 2)
             self.atlas_loc = atlas_loc
@@ -98,6 +100,8 @@ class PlotBase(object):
         self.lumi_units = lumi_units
         self.com_energy = com_energy
 
+        self.rebin = rebin
+
         self._make_canvas()
         self._make_decorations()
 
@@ -113,6 +117,14 @@ class PlotBase(object):
           if (self.x_units):
             self.y_title += " " + self.x_units
 
+    def set_titles(self, histo, label):
+        if(self.x_units != ""):
+            histo.GetXaxis().SetTitle(self.x_title + " [" + self.x_units + "]")
+        else:
+            histo.GetXaxis().SetTitle(self.x_title)
+
+        self.determine_y_axis_title(histo, label)
+        histo.GetYaxis().SetTitle(self.y_title)
 
     def set_x_axis_bounds(self, histo):
         if (self.x_max or self.x_min):
@@ -130,19 +142,23 @@ class PlotBase(object):
                 histo.GetXaxis().SetRangeUser(tmp_x_min , tmp_x_max)
 
     def pad_empty_space(self, histos):
+        if (self.y_max != None):
+            print("WARNING: attempted to pad empty space and set y-maximum at the same time.")
+            return
+        ''' rescale y-axis to add/subtract empty space '''
         if self.y_max != None:
-            print("warning: attmempted to set y_max and pad empty space at the same time")
+            print "warning: attmempted to set y_max and pad empty space at the same time"
             return
 
-        y_max = max(map(lambda h: h.GetMaximum(), histos))
+        self.y_max = max(map(lambda h: h.GetMaximum(), histos))
 
         if self.log_scale:
-            y_max *= 10**self.empty_scale
+            self.y_max *= 10**self.empty_scale
         else:
-            y_max *= self.empty_scale
+            self.y_max *= self.empty_scale
 
         for h in histos:
-            h.SetMaximum(y_max)
+            h.SetMaximum(self.y_max)
 
     def set_y_min(self, histo):
         if (self.y_min != None):
@@ -199,6 +215,8 @@ class PlotBase(object):
         self.leg.SetTextFont(42);
         self.leg.SetBorderSize(0)
 
+    def log_line(self, text_line):
+        self.log.append(text_line)
 
     def _draw_decorations(self):
         ''' Draw the ATLAS label, luminosity, extra lines, legend, etc '''
